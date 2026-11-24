@@ -1,0 +1,110 @@
+---
+- name: Provisionar web3
+  hosts: web3
+  become: true
+
+  tasks:
+    - name: Instalar Apache
+      ansible.builtin.apt:
+        name: apache2
+        state: present
+        update_cache: true
+
+    - name: Configurar resolucion DNS de web3
+      ansible.builtin.copy:
+        src: files/mercurio.olimpo.test/resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Crear directorios de los sitios web
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+      loop:
+        - /var/www/apolo.olimpo.test
+        - /var/www/apolo.olimpo.test/messages
+        - /var/www/atenea.olimpo.test
+        - /var/www/atenea.olimpo.test/messages
+
+    - name: Copiar paginas y archivos de las webs
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+      loop:
+        - src: files/apolo.olimpo.test/apolo.html
+          dest: /var/www/apolo.olimpo.test/apolo.html
+        - src: files/apolo.olimpo.test/apolo1.txt
+          dest: /var/www/apolo.olimpo.test/apolo1.txt
+        - src: files/apolo.olimpo.test/apolo2.txt
+          dest: /var/www/apolo.olimpo.test/apolo2.txt
+        - src: files/apolo.olimpo.test/messages/404.html
+          dest: /var/www/apolo.olimpo.test/messages/404.html
+        - src: files/atenea.olimpo.test/atenea.html
+          dest: /var/www/atenea.olimpo.test/atenea.html
+        - src: files/atenea.olimpo.test/atenea1.txt
+          dest: /var/www/atenea.olimpo.test/atenea1.txt
+        - src: files/atenea.olimpo.test/atenea2.txt
+          dest: /var/www/atenea.olimpo.test/atenea2.txt
+        - src: files/atenea.olimpo.test/messages/404.html
+          dest: /var/www/atenea.olimpo.test/messages/404.html
+
+    - name: Copiar configuracion de los sitios virtuales
+      ansible.builtin.copy:
+        src: "files/mercurio.olimpo.test/{{ item }}"
+        dest: "/etc/apache2/sites-available/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - apolo.olimpo.test.conf
+        - atenea.olimpo.test.conf
+      notify: Reiniciar Apache
+
+    - name: Habilitar sitios virtuales
+      ansible.builtin.file:
+        src: "/etc/apache2/sites-available/{{ item }}"
+        dest: "/etc/apache2/sites-enabled/{{ item }}"
+        state: link
+      loop:
+        - apolo.olimpo.test.conf
+        - atenea.olimpo.test.conf
+      notify: Reiniciar Apache
+
+    - name: Crear archivos de registro de los sitios
+      ansible.builtin.file:
+        path: "/var/log/apache2/{{ item }}"
+        state: touch
+        owner: root
+        group: adm
+        mode: "0640"
+        access_time: preserve
+        modification_time: preserve
+      loop:
+        - apolo.olimpo.test.error.log
+        - apolo.olimpo.test.access.log
+        - atenea.olimpo.test.error.log
+        - atenea.olimpo.test.access.log
+
+    - name: Comprobar configuracion de Apache
+      ansible.builtin.command: apache2ctl configtest
+      changed_when: false
+
+    - name: Mantener Apache activo y habilitado
+      ansible.builtin.service:
+        name: apache2
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Reiniciar Apache
+      ansible.builtin.service:
+        name: apache2
+        state: restarted

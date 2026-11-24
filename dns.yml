@@ -1,0 +1,80 @@
+---
+- name: Provisionar dns
+  hosts: dns3
+  become: true
+
+  tasks:
+    - name: Instalar Bind
+      ansible.builtin.apt:
+        name: bind9
+        state: present
+        update_cache: true
+
+    - name: Copiar configuracion de inicio de Bind
+      ansible.builtin.copy:
+        src: files/ns1.olimpo.test/named
+        dest: /etc/default/named
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reiniciar Bind
+
+    - name: Copiar opciones de Bind
+      ansible.builtin.copy:
+        src: files/ns1.olimpo.test/named.conf.options
+        dest: /etc/bind/named.conf.options
+        owner: root
+        group: bind
+        mode: "0644"
+      notify: Reiniciar Bind
+
+    - name: Copiar configuracion de zonas
+      ansible.builtin.copy:
+        src: files/ns1.olimpo.test/named.conf.local
+        dest: /etc/bind/named.conf.local
+        owner: root
+        group: bind
+        mode: "0644"
+      notify: Reiniciar Bind
+
+    - name: Copiar zona directa
+      ansible.builtin.copy:
+        src: files/ns1.olimpo.test/olimpo.test.dns
+        dest: /var/lib/bind/olimpo.test.dns
+        owner: root
+        group: bind
+        mode: "0644"
+      notify: Reiniciar Bind
+
+    - name: Copiar zona inversa
+      ansible.builtin.copy:
+        src: files/ns1.olimpo.test/192.168.57.dns
+        dest: /var/lib/bind/192.168.57.dns
+        owner: root
+        group: bind
+        mode: "0644"
+      notify: Reiniciar Bind
+
+    - name: Comprobar sintaxis de Bind
+      ansible.builtin.command: named-checkconf
+      changed_when: false
+
+    - name: Comprobar zona directa
+      ansible.builtin.command: named-checkzone olimpo.test /var/lib/bind/olimpo.test.dns
+      changed_when: false
+
+    - name: Comprobar zona inversa
+      ansible.builtin.command: named-checkzone 57.168.192.in-addr.arpa /var/lib/bind/192.168.57.dns
+      changed_when: false
+
+    - name: Mantener Bind activo
+      ansible.builtin.service:
+        name: named
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Reiniciar Bind
+      ansible.builtin.service:
+        name: named
+        state: restarted
